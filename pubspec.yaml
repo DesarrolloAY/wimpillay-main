@@ -10,26 +10,31 @@ dependencies:
   flutter:
     sdk: flutter
   # 🔥 Firebase base
-  firebase_core: ^3.3.0
+  firebase_core: ^3.6.0
   # 🔑 Autenticación con Firebase
-  firebase_auth: ^5.2.0
+  firebase_auth: ^5.3.1
   # ☁️ Base de datos Firestore
-  cloud_firestore: ^5.2.0
+  cloud_firestore: ^5.4.4
   # 🔵 Login con Google
   google_sign_in: ^6.2.1
 
   qr_flutter: ^4.1.0
   
-  mobile_scanner: ^5.1.0
+  mobile_scanner: ^5.2.3
 
-  intl: ^0.18.1
+  intl: ^0.19.0
+  http: ^1.2.1
 
   cupertino_icons: ^1.0.8
+  
+  # --- NUEVAS DEPENDENCIAS ---
+  image_picker: ^1.1.2           # Para seleccionar la captura de pantalla
+  google_mlkit_text_recognition: ^0.13.0  # El cerebro que lee el texto
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.2
 
 flutter:

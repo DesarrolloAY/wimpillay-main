@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart'; // <--- NUEVO
 import 'package:wimpillay_main/models/ticket_model.dart';
 import 'package:wimpillay_main/services/ticket_service.dart';
+import 'package:wimpillay_main/services/ocr_service.dart'; // <--- NUEVO
 import 'package:wimpillay_main/screens/passenger/ticket_screen.dart';
 import 'package:wimpillay_main/screens/auth/auth_service.dart';
 
@@ -25,50 +27,167 @@ class _PassengerHomeState extends State<PassengerHome> {
       adult * adultPrice + university * universityPrice + school * schoolPrice;
 
   final TicketService _ticketService = TicketService();
+
+  // --- NUEVOS SERVICIOS ---
+  final OcrService _ocrService = OcrService();
+  final ImagePicker _picker = ImagePicker();
+  // ------------------------
+
+  // IMPORTANTE: No olvides cerrar el OCR cuando salgas de la pantalla
+  @override
+  void dispose() {
+    _ocrService.dispose();
+    super.dispose();
+  }
+
   final user = FirebaseAuth.instance.currentUser;
   final AuthService _authService = AuthService();
 
-  Future<void> _confirmAndCreateTicket() async {
+  // NUEVA FUNCIÓN PRINCIPAL DEL BOTÓN DE PAGO
+  Future<void> _confirmPaymentWithScreenshot() async {
+    // 1. Validaciones básicas
     if (total <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Debe seleccionar al menos un pasajero')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Selecciona pasajeros')));
       return;
     }
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error: No se encontró usuario')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Error de usuario')));
       return;
     }
 
-    setState(() => _isProcessing = true);
     try {
+      // 2. Abrir Galería para seleccionar la captura
+      final XFile? image = await _picker.pickImage(
+          source: ImageSource.gallery,
+          imageQuality: 85 // Comprimir un poco para que sea rápido
+          );
+
+      if (image == null) return; // El usuario canceló la selección
+
+      // 3. Mostrar "Procesando..."
+      setState(() => _isProcessing = true);
+
+      // 4. Llamar a nuestro servicio de OCR
+      final scannedData = await _ocrService.scanPaymentVoucher(image);
+
+      final String scannedAmountStr = scannedData['amount'] ?? "0";
+      final String scannedCode = scannedData['code'] ?? "";
+      final double amountDetected = double.tryParse(scannedAmountStr) ?? 0.0;
+
+      // 5. Validación Anti-Fraude (Básica)
+      // Verificamos si el monto en la foto coincide con el total a pagar
+      // Usamos una pequeña tolerancia de 0.01 por errores de redondeo en doubles
+      bool isAmountCorrect = (amountDetected - total).abs() < 0.01;
+
+      if (!mounted) return;
+
+      // 6. Mostrar diálogo de confirmación al usuario con los datos leídos
+      bool? confirm = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                  isAmountCorrect
+                      ? Icons.check_circle
+                      : Icons.warning_amber_rounded,
+                  color: isAmountCorrect ? Colors.green : Colors.orange),
+              const SizedBox(width: 10),
+              const Text("Confirmar Datos"),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Total a pagar: S/. ${total.toStringAsFixed(2)}",
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 15),
+              const Text("Datos leídos de la imagen:",
+                  style: TextStyle(color: Colors.grey)),
+              const Divider(),
+              // Mostramos el monto leído. Si no coincide, lo ponemos en rojo.
+              Text("Monto: S/. $scannedAmountStr",
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: isAmountCorrect ? Colors.black : Colors.red)),
+
+              if (!isAmountCorrect)
+                const Text("⚠️ El monto de la imagen no coincide.",
+                    style: TextStyle(color: Colors.red, fontSize: 12)),
+
+              const SizedBox(height: 10),
+              // Mostramos el código leído. Si está vacío, avisamos.
+              Text(
+                  "N° Operación: ${scannedCode.isEmpty ? 'No detectado' : scannedCode}",
+                  style: const TextStyle(fontSize: 16)),
+
+              if (scannedCode.isEmpty)
+                const Text("⚠️ No se pudo leer el código claramente.",
+                    style: TextStyle(color: Colors.orange, fontSize: 12)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false), // Cancelar
+              child: const Text("Cancelar"),
+            ),
+            ElevatedButton(
+              // Si el monto no coincide, el botón es naranja como advertencia
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: isAmountCorrect
+                      ? Theme.of(context).primaryColor
+                      : Colors.orange),
+              onPressed: () => Navigator.pop(ctx, true), // Confirmar
+              child: const Text("CONFIRMAR Y CREAR TICKET"),
+            ),
+          ],
+        ),
+      );
+
+      // Si el usuario canceló el diálogo o dio click fuera
+      if (confirm != true) {
+        setState(() => _isProcessing = false);
+        return;
+      }
+
+      // 7. Todo OK -> Crear Ticket en Firebase
+      // Si no se leyó el código, enviamos "NO_DETECTADO" para que quede registro
+      final finalCodeToSave =
+          scannedCode.isEmpty ? "NO_DETECTADO" : scannedCode;
+
       final ticket = await _ticketService.createTicket(
         userId: user!.uid,
         adultCount: adult,
         universityCount: university,
         schoolCount: school,
         totalAmount: total,
+        paymentRef: finalCodeToSave, // <--- ¡Aquí guardamos el dato del OCR!
       );
 
       if (!mounted) return;
+
+      // 8. Navegar a la pantalla del ticket
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => TicketScreen(ticket: ticket),
-        ),
+        MaterialPageRoute(builder: (_) => TicketScreen(ticket: ticket)),
       );
+
+      // Reseteamos contadores
       setState(() {
-        adult = 0; // Reiniciar a 1 adulto por defecto (opcional)
+        adult = 1; // O 0, como prefieras
         university = 0;
         school = 0;
       });
     } catch (e) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error creando ticket: $e')));
+          .showSnackBar(SnackBar(content: Text('Error procesando imagen: $e')));
     } finally {
+      // Siempre quitamos el "Procesando..." al final
       if (mounted) setState(() => _isProcessing = false);
     }
   }
@@ -99,7 +218,7 @@ class _PassengerHomeState extends State<PassengerHome> {
             },
           ),
           // --- FIN NUEVO BOTÓN ---
-          
+
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Cerrar sesión',
@@ -186,7 +305,7 @@ class _PassengerHomeState extends State<PassengerHome> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.check_circle_outline, size: 26),
-                      onPressed: _confirmAndCreateTicket,
+                      onPressed: _confirmPaymentWithScreenshot,
                       style: theme.elevatedButtonTheme.style,
                       label: const Text(
                         'CONFIRMAR PAGO',

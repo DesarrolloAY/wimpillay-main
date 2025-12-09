@@ -25,9 +25,11 @@ class TicketService {
     required int universityCount,
     required int schoolCount,
     required double totalAmount,
+    String? paymentRef, // <--- NUEVO PARÁMETRO OPCIONAL
   }) async {
     final ticket = TicketModel(
       userId: userId,
+      paymentRef: paymentRef, // <--- Pasamos el dato al modelo
       adultCount: adultCount,
       universityCount: universityCount,
       schoolCount: schoolCount,
@@ -49,16 +51,15 @@ class TicketService {
         // Para evitar complicaciones ahora, ordenaremos en la app (Dart).
         .snapshots()
         .map((snapshot) {
-          final tickets = snapshot.docs
-              .map((doc) => TicketModel.fromMap(doc.data(), doc.id))
-              .toList();
-          
-          // Ordenamos aquí: Los más recientes primero
-          tickets.sort((a, b) => b.purchaseDate.compareTo(a.purchaseDate));
-          return tickets;
-        });
-  }
+      final tickets = snapshot.docs
+          .map((doc) => TicketModel.fromMap(doc.data(), doc.id))
+          .toList();
 
+      // Ordenamos aquí: Los más recientes primero
+      tickets.sort((a, b) => b.purchaseDate.compareTo(a.purchaseDate));
+      return tickets;
+    });
+  }
 
   // --- NUEVA LÓGICA DE VALIDACIÓN ---
   Future<ValidationResult> validateTicket(String qrCodeData) async {
@@ -67,18 +68,19 @@ class TicketService {
       // Se espera: "TKT:{ticketId}::USER:{userId}"
       if (!qrCodeData.startsWith("TKT:")) {
         return ValidationResult(
-          status: TicketValidationStatus.error, 
-          message: "Formato de QR inválido o no pertenece a Wimpillay"
-        );
+            status: TicketValidationStatus.error,
+            message: "Formato de QR inválido o no pertenece a Wimpillay");
       }
 
       // 2. Extraer el ID del ticket
       // Ejemplo: de "TKT:QtRvn...::USER:jkl..." sacamos "QtRvn..."
       final parts = qrCodeData.split("::");
       if (parts.isEmpty) {
-        return ValidationResult(status: TicketValidationStatus.error, message: "Código QR corrupto");
+        return ValidationResult(
+            status: TicketValidationStatus.error,
+            message: "Código QR corrupto");
       }
-      
+
       final ticketIdPart = parts[0]; // "TKT:QtRvn..."
       final ticketId = ticketIdPart.split(":")[1]; // "QtRvn..."
 
@@ -92,9 +94,8 @@ class TicketService {
 
         if (!snapshot.exists) {
           return ValidationResult(
-              status: TicketValidationStatus.notFound, 
-              message: "Ticket no encontrado en el sistema"
-          );
+              status: TicketValidationStatus.notFound,
+              message: "Ticket no encontrado en el sistema");
         }
 
         // Convertimos la data a nuestro modelo
@@ -112,7 +113,8 @@ class TicketService {
         // CASO B: SI ES VÁLIDO Y NUEVO -> LO MARCAMOS COMO USADO
         transaction.update(docRef, {
           'isUsed': true,
-          'usedAt': FieldValue.serverTimestamp(), // Guardamos la hora exacta del escaneo
+          'usedAt': FieldValue
+              .serverTimestamp(), // Guardamos la hora exacta del escaneo
         });
 
         // Devolvemos el resultado de éxito
@@ -122,13 +124,11 @@ class TicketService {
           message: "Ticket válido. Pase autorizado.",
         );
       });
-
     } catch (e) {
       // Cualquier otro error técnico (sin internet, permisos, etc.)
       return ValidationResult(
-        status: TicketValidationStatus.error, 
-        message: "Error técnico validando ticket: $e"
-      );
+          status: TicketValidationStatus.error,
+          message: "Error técnico validando ticket: $e");
     }
   }
 }

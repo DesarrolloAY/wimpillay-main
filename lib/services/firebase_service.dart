@@ -8,17 +8,21 @@ class FirebaseService {
   Future<TicketModel> saveTicket(TicketModel ticket) async {
     try {
       // 1. Añade el documento a la colección 'tickets'
-      // Usamos el .toMap() sin el ID la primera vez
+      // Guardamos la referencia (docRef) una sola vez
       DocumentReference docRef =
           await _db.collection('tickets').add(ticket.toMap());
 
-      // 2. Obtenemos el ID generado
+      // 2. Obtenemos el ID generado una sola vez
       String ticketId = docRef.id;
 
-      // 3. Creamos la data del QR (¡ahora incluye el ID!)
-      String qrData = 'TKT:${ticketId}::USER:${ticket.userId}';
+      // --- AQUÍ HABÍA CÓDIGO DUPLICADO QUE ELIMINÉ ---
 
-      // 4. Actualizamos el documento con su propio ID y el QR
+      // 3. Creamos la data del QR (¡ACTUALIZADO CON REF!)
+      // Si paymentRef es null, ponemos "NA"
+      String qrData =
+          'TKT:${ticketId}::USER:${ticket.userId}::REF:${ticket.paymentRef ?? "NA"}';
+
+      // 4. Actualizamos el documento con su propio ID y el QR generado
       await docRef.update({
         'id': ticketId,
         'qrCode': qrData,
@@ -33,9 +37,10 @@ class FirebaseService {
         schoolCount: ticket.schoolCount,
         totalAmount: ticket.totalAmount,
         purchaseDate: ticket.purchaseDate,
-        qrCode: qrData, // Devolvemos con el QR final
+        qrCode: qrData, // Solo una vez
         isUsed: ticket.isUsed,
         usedAt: ticket.usedAt,
+        paymentRef: ticket.paymentRef, // Aseguramos devolver la referencia
       );
     } catch (e) {
       print('Error en saveTicket: $e');

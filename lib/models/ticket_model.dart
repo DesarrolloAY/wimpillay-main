@@ -1,35 +1,40 @@
+// lib/models/ticket_model.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TicketModel {
-  final String? id; // El ID del documento de Firestore
-  final String userId; // ¡NUEVO! Para saber quién lo compró
+  final String? id;
+  final String userId;
+  // --- NUEVO CAMPO ---
+  final String? paymentRef; // Para guardar el N° de Operación de Yape/Plin
+  // -------------------
   final int adultCount;
   final int universityCount;
   final int schoolCount;
   final double totalAmount;
-  final Timestamp purchaseDate; // Fecha de compra
-  final String qrCode; // Datos para el QR
-  final bool isUsed; // false al crearse
-  final Timestamp? usedAt; // null al crearse
+  final Timestamp purchaseDate;
+  final String qrCode;
+  final bool isUsed;
+  final Timestamp? usedAt;
 
   TicketModel({
     this.id,
     required this.userId,
+    this.paymentRef, // <--- Añadir al constructor
     required this.adultCount,
     required this.universityCount,
     required this.schoolCount,
     required this.totalAmount,
     required this.purchaseDate,
     required this.qrCode,
-    this.isUsed = false, // Valor por defecto
+    this.isUsed = false,
     this.usedAt,
   });
 
-  // Convertir el objeto a un Map para Firestore
   Map<String, dynamic> toMap() {
     return {
-      'id': id, // Guardamos el id dentro del documento
+      'id': id,
       'userId': userId,
+      'paymentRef': paymentRef, // <--- Añadir al Mapa
       'adultCount': adultCount,
       'universityCount': universityCount,
       'schoolCount': schoolCount,
@@ -41,20 +46,19 @@ class TicketModel {
     };
   }
 
-  // Crear un objeto desde un Map de Firestore
   factory TicketModel.fromMap(Map<String, dynamic> map, String documentId) {
     return TicketModel(
       id: documentId,
       userId: map['userId'] ?? '',
+      paymentRef: map['paymentRef'], // <--- Leer del Mapa (puede ser null)
       adultCount: map['adultCount'] ?? 0,
       universityCount: map['universityCount'] ?? 0,
       schoolCount: map['schoolCount'] ?? 0,
       totalAmount: (map['totalAmount'] ?? 0).toDouble(),
-      purchaseDate:
-          map['purchaseDate'] ?? Timestamp.now(), // Aseguramos que exista
+      purchaseDate: map['purchaseDate'] ?? Timestamp.now(),
       qrCode: map['qrCode'] ?? '',
       isUsed: map['isUsed'] ?? false,
-      usedAt: map['usedAt'], // Puede ser null
+      usedAt: map['usedAt'],
     );
   }
 }
