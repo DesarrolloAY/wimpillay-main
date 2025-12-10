@@ -27,6 +27,26 @@ class TicketService {
     required double totalAmount,
     String? paymentRef, // <--- NUEVO PARÁMETRO OPCIONAL
   }) async {
+    // --- NUEVA VALIDACIÓN ANTI-FRAUDE ---
+    // Si tenemos un número de operación (y no es "NO_DETECTADO"), verificamos duplicados
+    if (paymentRef != null &&
+        paymentRef != "NO_DETECTADO" &&
+        paymentRef.isNotEmpty) {
+      final querySnapshot = await _db
+          .collection('tickets')
+          .where('paymentRef',
+              isEqualTo: paymentRef) // Buscamos tickets con el mismo código
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        // ¡ENCONTRAMOS UN DUPLICADO!
+        // Lanzamos un error para detener todo el proceso.
+        throw Exception(
+            "Este voucher (Operación $paymentRef) ya fue utilizado anteriormente.");
+      }
+    }
+    // ------------------------------------
+
     final ticket = TicketModel(
       userId: userId,
       paymentRef: paymentRef, // <--- Pasamos el dato al modelo

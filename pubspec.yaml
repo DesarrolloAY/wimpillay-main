@@ -30,6 +30,7 @@ dependencies:
   # --- NUEVAS DEPENDENCIAS ---
   image_picker: ^1.1.2           # Para seleccionar la captura de pantalla
   google_mlkit_text_recognition: ^0.13.0  # El cerebro que lee el texto
+  gal: ^2.3.2
 
 dev_dependencies:
   flutter_test:
@@ -42,8 +43,10 @@ flutter:
 
   assets:
     - assets/google_logo.png
+    - assets/qr_yape.jpg
     
 flutter_icons:
   android: true
   ios: true
   image_path: "images/icon.png"
+  
