@@ -40,6 +40,37 @@ class _PassengerHomeState extends State<PassengerHome> {
     super.dispose();
   }
 
+  // --- FUNCIÓN NUEVA: Mostrar errores en Pop-up elegante ---
+  void _showErrorDialog(String message) {
+    // Limpiamos el mensaje para que no diga "Exception:" al principio
+    final cleanMessage = message.replaceAll("Exception:", "").trim();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.orange, size: 28),
+            SizedBox(width: 10),
+            Text("Atención"),
+          ],
+        ),
+        content: Text(
+          cleanMessage,
+          style: const TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Entendido",
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   // --- FUNCIÓN PARA GUARDAR EL QR EN GALERÍA ---
   Future<void> _saveQrToGallery() async {
     try {
@@ -56,9 +87,8 @@ class _PassengerHomeState extends State<PassengerHome> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo guardar: $e')),
-      );
+      // CAMBIO AQUÍ: Usamos el Pop-up en lugar del SnackBar
+      _showErrorDialog("No se pudo guardar la imagen: $e");
     }
   }
 
@@ -322,8 +352,10 @@ class _PassengerHomeState extends State<PassengerHome> {
         school = 0;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+      // CAMBIO AQUÍ: Usamos el Pop-up en lugar del SnackBar
+      if (mounted) {
+        _showErrorDialog(e.toString());
+      }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
@@ -344,7 +376,6 @@ class _PassengerHomeState extends State<PassengerHome> {
     );
   }
 
-  // --- AQUÍ ESTÁ LA FUNCIÓN QUE TE FALTABA ---
   Widget _buildCounterDark({
     required String label,
     required double price,
